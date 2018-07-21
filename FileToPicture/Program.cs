@@ -28,17 +28,16 @@ namespace FileToPicture
                         if (offset + 2 == bytes.Length)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1],0));
-                            offset += 3;
                         }
-                        else if(bytes.Length < offset)
+                        else if (bytes.Length <= offset)
                         {
-                            Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                            goto Exit;
                         }
                         else
                         {
                             Process.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
-                            offset += 3;
                         }
+                        offset += 3;
                     }
                     else
                     {
@@ -47,9 +46,9 @@ namespace FileToPicture
                             Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1], 0));
                             offset += 3;
                         }
-                        else if (bytes.Length < offset)
+                        else if (bytes.Length <= offset)
                         {
-                            Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                            goto Exit;
                         }
                         else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
                         {
@@ -63,6 +62,7 @@ namespace FileToPicture
                     }
                 }
             }
+            Exit:
             if(offset < bytes.Length/3)
             {
                 Console.WriteLine("생성실패! 너무 사진 사이즈가 작습니다");
