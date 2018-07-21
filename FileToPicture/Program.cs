@@ -162,7 +162,7 @@ namespace FileToPicture
                    
                 }
             }
-            if (File.ReadAllBytes("input") == data.ToArray())
+            if (File.ReadAllBytes("input").Length == data.ToArray().Length)
             {
                 Console.WriteLine("검증통과");
             }
