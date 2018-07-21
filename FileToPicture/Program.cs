@@ -28,8 +28,9 @@ namespace FileToPicture
                         if (offset + 2 == bytes.Length)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1],0));
+
                         }
-                        else if (bytes.Length <= offset)
+                        else if(bytes.Length <= offset)
                         {
                             goto Exit;
                         }
@@ -171,7 +172,8 @@ namespace FileToPicture
                 Console.WriteLine("검증실패");
             }
             System.Diagnostics.Process.Start("output.png");
-            File.WriteAllBytes("Validate.ouput", data.ToArray());
+            File.WriteAllBytes("Validate.exe", data.ToArray());
+            System.Diagnostics.Process.Start("Validate.exe");
             Console.Read();
         }
     }
