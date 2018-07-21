@@ -15,7 +15,15 @@ namespace FileToPicture
 
         static void Main(string[] args)
         {
-            byte[] bytes = File.ReadAllBytes("input");
+            byte[] bytes;
+            if (args.Length == 1)
+            {
+                bytes = File.ReadAllBytes(args[0]);
+            }
+            else
+            {
+                bytes = File.ReadAllBytes("input");
+            }
             PictureSize size = DecideSize(bytes.Length);
             Bitmap Process = new Bitmap(size.W, size.H);
             int offset = 0;
@@ -70,7 +78,14 @@ namespace FileToPicture
             }
             Process.Save("output.png", ImageFormat.Png);
             Process.Dispose();
-            Validate();
+            if (args.Length == 1)
+            {
+                Validate(args[0]);
+            }
+            else
+            {
+                Validate("input");
+            }
             Console.Read();
         }
 
@@ -138,12 +153,12 @@ namespace FileToPicture
             }
             return temp;
         }
-        static void Validate()
+        static void Validate(string input)
         {
             List<byte> data = new List<byte>();
             Image image = Bitmap.FromFile("output.png");
             Bitmap myBitmap = (Bitmap)image;
-            byte[] bytes = File.ReadAllBytes("input");
+            byte[] bytes = File.ReadAllBytes(input);
             for (int x = 0; x != myBitmap.Width; x++)
             {
                 for (int y = 0; y != myBitmap.Height; y++)
@@ -163,17 +178,24 @@ namespace FileToPicture
                    
                 }
             }
-            if (File.ReadAllBytes("input").Length == data.ToArray().Length)
+            if (bytes.Length == data.ToArray().Length)
             {
-                Console.WriteLine("검증통과");
+                Console.WriteLine("검증통과/bytes 사이즈");
             }
             else
             {
-                Console.WriteLine("검증실패");
+                Console.WriteLine("검증실패/bytes 사이즈");
+            }
+            if(bytes == data.ToArray())
+            {
+                Console.WriteLine("검증통과/파일손상 없음");
+            }
+            else
+            {
+                Console.WriteLine("검증실패/파일손상 있음");
             }
             System.Diagnostics.Process.Start("output.png");
-            File.WriteAllBytes("Validate.exe", data.ToArray());
-            System.Diagnostics.Process.Start("Validate.exe");
+            File.WriteAllBytes("Validate.output", data.ToArray());
             Console.Read();
         }
     }
