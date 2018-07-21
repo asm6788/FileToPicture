@@ -22,15 +22,34 @@ namespace FileToPicture
             {
                 for (int y = 0; y != Process.Height; y++)
                 {
-                    if (bytes.Length < offset + 2 || offset + 2 == bytes.Length)
+                    if (!size.IsCircle)
                     {
-                        Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                        if (bytes.Length < offset + 2 || offset + 2 == bytes.Length)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                        }
+                        else
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                            offset += 3;
+                        }
                     }
                     else
                     {
-                        Process.SetPixel(x, y, Color.FromArgb(255, Convert.ToInt32(bytes[offset]), bytes[offset + 1], bytes[offset + 2]));
+                        if (bytes.Length < offset + 2 || offset + 2 == bytes.Length)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                        }
+                        else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                            offset += 3;
+                        }
+                        else
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                        }
                     }
-                    offset+= 3;
                 }
             }
             if(offset < bytes.Length/3)
@@ -39,7 +58,7 @@ namespace FileToPicture
             }
             Process.Save("output.png", ImageFormat.Png);
             Process.Dispose();
-            Vaildate();
+            Validate();
             Console.Read();
         }
 
@@ -48,7 +67,9 @@ namespace FileToPicture
         {
             Console.WriteLine("1.정사각형");
             Console.WriteLine("2.직사각형");
-            if (Console.ReadLine() == "1")
+            Console.WriteLine("3.원");
+            string select = Console.ReadLine();
+            if (select == "1")
             {
                 len /= 3;
                 if ((Math.Sqrt(len) % 1) != 0) //소수 나옴
@@ -62,7 +83,7 @@ namespace FileToPicture
                     return new PictureSize(size, size);
                 }
             }
-            else
+            else if (select == "2")
             {
                 int size = 0;
                 if (((double)len / (double)3) % 1 != 0) //소수 나옴
@@ -84,7 +105,13 @@ namespace FileToPicture
                 int input = Convert.ToInt32(Console.ReadLine());
                 return new PictureSize(divisors[input].A, divisors[input].B);
             }
-            
+            else
+            {
+                len /= 3;
+                int size = (int)Math.Ceiling(0.56419 * Math.Sqrt(len));
+                size *= 2;
+                return new PictureSize(size, size,true);
+            }
         }
 
         static List<Divisor> getDivisors(int num)
@@ -92,16 +119,14 @@ namespace FileToPicture
             List<Divisor> temp = new List<Divisor>();
             for(int i = 1; i <= num;i++)
             {
-                if(num % i == 0)
+                if (num % i == 0)
                 {
-                    {
-                        temp.Add(new Divisor(i, num / i));
-                    }
+                    temp.Add(new Divisor(i, num / i));
                 }
             }
             return temp;
         }
-        static void Vaildate()
+        static void Validate()
         {
             List<byte> data = new List<byte>();
             Image image = Bitmap.FromFile("output.png");
@@ -119,7 +144,7 @@ namespace FileToPicture
                     }
                 }
             }
-            if (File.ReadAllBytes("input").Length - data.ToArray().Length < 10)
+            if (Math.Abs(File.ReadAllBytes("input").Length - data.ToArray().Length) < 10)
             {
                 Console.WriteLine("검증통과");
             }
@@ -128,7 +153,7 @@ namespace FileToPicture
                 Console.WriteLine("검증실패");
             }
             System.Diagnostics.Process.Start("output.png");
-            File.WriteAllBytes("pls.wav", data.ToArray());
+            File.WriteAllBytes("Validate.ouput", data.ToArray());
             Console.Read();
         }
     }
@@ -137,11 +162,16 @@ namespace FileToPicture
     {
         public int W;
         public int H;
-
+        public bool IsCircle;
         public PictureSize(int w, int h)
         {
             W = w;
             H = h;
+        }
+
+        public PictureSize(int w, int h, bool isCircle) : this(w, h)
+        {
+            IsCircle = isCircle;
         }
     }
 
