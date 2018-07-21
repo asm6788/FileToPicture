@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -24,7 +25,12 @@ namespace FileToPicture
                 {
                     if (!size.IsCircle)
                     {
-                        if (bytes.Length < offset + 2 || offset + 2 == bytes.Length)
+                        if (offset + 2 == bytes.Length)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1],0));
+                            offset += 3;
+                        }
+                        else if(bytes.Length < offset)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
                         }
@@ -36,7 +42,12 @@ namespace FileToPicture
                     }
                     else
                     {
-                        if (bytes.Length < offset + 2 || offset + 2 == bytes.Length)
+                        if (offset + 2 == bytes.Length)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1], 0));
+                            offset += 3;
+                        }
+                        else if (bytes.Length < offset)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
                         }
@@ -131,20 +142,27 @@ namespace FileToPicture
             List<byte> data = new List<byte>();
             Image image = Bitmap.FromFile("output.png");
             Bitmap myBitmap = (Bitmap)image;
+            byte[] bytes = File.ReadAllBytes("input");
             for (int x = 0; x != myBitmap.Width; x++)
             {
                 for (int y = 0; y != myBitmap.Height; y++)
                 {
                     Color pixel = myBitmap.GetPixel(x, y);
-                    if (pixel != Color.FromArgb(0, 0, 0, 0))
+                    if (pixel.A == 1)
+                    {
+                        data.Add(pixel.R);
+                        data.Add(pixel.G);
+                    }
+                    else if (pixel != Color.FromArgb(0, 0, 0, 0))
                     {
                         data.Add(pixel.R);
                         data.Add(pixel.G);
                         data.Add(pixel.B);
                     }
+                   
                 }
             }
-            if (Math.Abs(File.ReadAllBytes("input").Length - data.ToArray().Length) < 10)
+            if (File.ReadAllBytes("input") == data.ToArray())
             {
                 Console.WriteLine("검증통과");
             }
