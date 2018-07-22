@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Threading;
 using System.IO;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,16 +17,162 @@ namespace FileToPicture
 
         static void Main(string[] args)
         {
+            string path = "";
             byte[] bytes;
             if (args.Length == 1)
             {
-                bytes = File.ReadAllBytes(args[0]);
+
+                bytes = File.ReadAllBytes(path);
             }
             else
             {
                 bytes = File.ReadAllBytes("input");
             }
-            PictureSize size = DecideSize(bytes.Length);
+            WantThread(bytes);
+            Console.WriteLine("검증 하시겠습니까? (램용량에 주의) Y/N");
+            if(Console.ReadLine() == "Y")
+            {
+                if (args.Length == 1)
+                {
+                    Validate(args[0]);
+                }
+                else
+                {
+                    Validate("input");
+                }
+            }
+            Console.WriteLine("완료");
+            Console.Read();
+        }
+
+        private static void WantThread(byte[] bytes) //27바이트 저장 / 6여유 /3,3
+        {
+            Stopwatch stopWatch = new Stopwatch();
+            Console.WriteLine("1.싱글쓰레드");
+            Console.WriteLine("2.멀티쓰레드");
+            if (Console.ReadLine() == "1")
+            {
+                Console.Write("모양을 선택해주세요. (1 : 정사각형, 2 : 직사각형, 3 : 원) : ");
+                PictureSize size = CalculateSize(bytes.Length, (PictureShape)(Convert.ToInt32(Console.ReadLine()) - 1));
+                stopWatch.Start();
+                Run(bytes, size).Save("output.png", ImageFormat.Png);
+                stopWatch.Stop();
+            }
+            else
+            {
+                re:
+                int threadCount = 0;
+                int EachSize = 0;
+                Console.WriteLine("멀티 코어로 하시겠습니까? Y/N");
+                if (Console.ReadLine() == "Y")
+                {
+                    Process currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                    foreach (ProcessThread processThread in currentProcess.Threads)
+                    {
+                        processThread.ProcessorAffinity = currentProcess.ProcessorAffinity;
+                    }
+                    threadCount = currentProcess.Threads.Count;
+                    EachSize = (int)Math.Ceiling((double)bytes.Length / (double)threadCount);
+
+                }
+                else
+                {
+                    Console.WriteLine("원하는 쓰레드 수를 입력하세요");
+                    threadCount = Int32.Parse(Console.ReadLine());
+                    EachSize = (int)Math.Ceiling((double)bytes.Length / (double)threadCount);
+                    if (bytes.Length / threadCount == 0)
+                    {
+                        Console.WriteLine("쓰레드가 너무많습니다");
+                        goto re;
+                    }
+                }
+                List<byte[]> EachByte = new List<byte[]>();
+                int locationbyte = 0;
+                for (int i = 0; i != threadCount; i++)
+                {
+                    if (i == threadCount - 1)
+                    {
+                        EachByte.Add(bytes.Skip(locationbyte).Take(bytes.Length - locationbyte).ToArray());
+                    }
+                    else
+                    {
+                        EachByte.Add(bytes.Skip(locationbyte).Take(EachSize).ToArray());
+                        locationbyte += EachSize;
+                    }
+                }
+                Bitmap[] bitmaps = new Bitmap[threadCount];
+                PictureSize size = CalculateSize(bytes.Length, PictureShape.Square);
+
+                int length = bytes.Length / 3;
+                length /= threadCount;
+                if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
+                {
+                    int Picsize = (int)Math.Ceiling(Math.Sqrt(length));
+                    size = new PictureSize(Picsize, Picsize);
+                }
+                else
+                {
+                    int Picsize = (int)Math.Sqrt(length);
+                    size = new PictureSize(Picsize, Picsize);
+                }
+
+                Bitmap Process = new Bitmap(size.W, size.H);
+                for (int index = 0; index != threadCount; index++)
+                {
+                    Thread t1 = new Thread(delegate () { bitmaps[index] = Run(EachByte[index], size); });
+                    t1.Start();
+                    t1.Join();
+                }
+                Process = MergeImages(bitmaps);
+                Process.Save("output.png", ImageFormat.Png);
+                Process = null;
+                bitmaps = null;
+                EachByte = null;
+                GC.Collect();
+            }
+        }
+
+
+        static private Bitmap MergeImages(Bitmap[] images)
+        {
+            var width = 0;
+            var height = 0;
+
+            foreach (var image in images)
+            {
+                width += image.Width;
+                height = image.Height > height
+                    ? image.Height
+                    : height;
+            }
+            List<Color> colors = new List<Color>();
+            foreach (Bitmap bitmap in images)
+            {
+                for (int x = 0; x != bitmap.Size.Width; x++)
+                {
+                    for (int y = 0; y != bitmap.Size.Height; y++)
+                    {
+                        colors.Add(bitmap.GetPixel(x, y));
+                    }
+                }
+            }
+            Bitmap bit = new Bitmap(width, height);
+            int index = 0;
+            for (int x = 0; x != width; x++)
+            {
+                for (int y = 0; y != height; y++)
+                {
+                    bit.SetPixel(x, y, colors[index]);
+                    index++;
+                }
+            }
+            colors = null;
+            GC.Collect();
+            return bit;
+        }
+
+        static Bitmap Run(byte[] bytes, PictureSize size)
+        {
             Bitmap Process = new Bitmap(size.W, size.H);
             int offset = 0;
             for (int x = 0; x != Process.Width; x++)
@@ -35,10 +183,14 @@ namespace FileToPicture
                     {
                         if (offset + 2 == bytes.Length)
                         {
-                            Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1],0));
-
+                            Process.SetPixel(x, y, Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0));
+                            goto Exit;
                         }
-                        else if(bytes.Length <= offset)
+                        if (offset + 1 == bytes.Length)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], 0, 0));
+                        }
+                        else if (bytes.Length <= offset)
                         {
                             goto Exit;
                         }
@@ -50,18 +202,25 @@ namespace FileToPicture
                     }
                     else
                     {
-                        if (offset + 2 == bytes.Length)
-                        {
-                            Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], bytes[offset + 1], 0));
-                            offset += 3;
-                        }
-                        else if (bytes.Length <= offset)
+                        if (bytes.Length <= offset)
                         {
                             goto Exit;
                         }
                         else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
                         {
-                            Process.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                            if (offset + 2 == bytes.Length)
+                            {
+                                Process.SetPixel(x, y, Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0));
+                                goto Exit;
+                            }
+                            else if (offset + 1 == bytes.Length)
+                            {
+                                Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], 0, 0));
+                            }
+                            else
+                            {
+                                Process.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                            }
                             offset += 3;
                         }
                         else
@@ -72,56 +231,37 @@ namespace FileToPicture
                 }
             }
             Exit:
-            if(offset < bytes.Length/3)
-            {
-                Console.WriteLine("생성실패! 너무 사진 사이즈가 작습니다");
-            }
-            Process.Save("output.png", ImageFormat.Png);
-            Process.Dispose();
-            if (args.Length == 1)
-            {
-                Validate(args[0]);
-            }
-            else
-            {
-                Validate("input");
-            }
-            Console.Read();
+            return Process;
         }
 
- 
-        static PictureSize DecideSize(int len)
+        static PictureSize CalculateSize(int length, PictureShape shape)
         {
-            Console.WriteLine("1.정사각형");
-            Console.WriteLine("2.직사각형");
-            Console.WriteLine("3.원");
-            string select = Console.ReadLine();
-            if (select == "1")
+            if (shape == PictureShape.Square)
             {
-                len /= 3;
-                if ((Math.Sqrt(len) % 1) != 0) //소수 나옴
+                length /= 3;
+                if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
                 {
-                    int size = (int)Math.Ceiling(Math.Sqrt(len));
+                    int size = (int)Math.Ceiling(Math.Sqrt(length));
                     return new PictureSize(size, size);
                 }
                 else
                 {
-                    int size = (int)Math.Sqrt(len);
+                    int size = (int)Math.Sqrt(length);
                     return new PictureSize(size, size);
                 }
             }
-            else if (select == "2")
+            else if (shape == PictureShape.Rectangular)
             {
                 int size = 0;
-                if (((double)len / (double)3) % 1 != 0) //소수 나옴
+                if (((double)length / (double)3) % 1 != 0) //소수 나옴
                 {
-                    size = Convert.ToInt32(len);
+                    size = Convert.ToInt32(length);
                     size /= 3;
                     size += 1;
                 }
                 else
                 {
-                    size = Convert.ToInt32(len);
+                    size = Convert.ToInt32(length);
                     size /= 3;
                 }
                 List<Divisor> divisors = getDivisors(size);
@@ -134,8 +274,8 @@ namespace FileToPicture
             }
             else
             {
-                len /= 3;
-                int size = (int)Math.Ceiling(0.56419 * Math.Sqrt(len));
+                length /= 3;
+                int size = (int)Math.Ceiling(0.56419 * Math.Sqrt(length));
                 size *= 2;
                 return new PictureSize(size, size,true);
             }
@@ -153,6 +293,7 @@ namespace FileToPicture
             }
             return temp;
         }
+
         static void Validate(string input)
         {
             List<byte> data = new List<byte>();
@@ -165,6 +306,10 @@ namespace FileToPicture
                 {
                     Color pixel = myBitmap.GetPixel(x, y);
                     if (pixel.A == 1)
+                    {
+                        data.Add(pixel.R);
+                    }
+                    else if (pixel.A == 2)
                     {
                         data.Add(pixel.R);
                         data.Add(pixel.G);
@@ -186,7 +331,7 @@ namespace FileToPicture
             {
                 Console.WriteLine("검증실패/bytes 사이즈");
             }
-            if(bytes == data.ToArray())
+            if(bytes.SequenceEqual(data.ToArray()))
             {
                 Console.WriteLine("검증통과/파일손상 없음");
             }
@@ -195,8 +340,9 @@ namespace FileToPicture
                 Console.WriteLine("검증실패/파일손상 있음");
             }
             System.Diagnostics.Process.Start("output.png");
+            Console.WriteLine("Validate.output 쓰는중..");
             File.WriteAllBytes("Validate.output", data.ToArray());
-            Console.Read();
+            Console.WriteLine("Validate.output 쓰기 완료");
         }
     }
     
@@ -227,5 +373,13 @@ namespace FileToPicture
             A = a;
             B = b;
         }
+    }
+
+
+    enum PictureShape
+    {
+        Square,
+        Rectangular,
+        Circle
     }
 }
