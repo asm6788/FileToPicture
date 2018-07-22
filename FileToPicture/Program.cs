@@ -17,12 +17,10 @@ namespace FileToPicture
 
         static void Main(string[] args)
         {
-            string path = "";
             byte[] bytes;
             if (args.Length == 1)
             {
-
-                bytes = File.ReadAllBytes(path);
+                bytes = File.ReadAllBytes(args[0]);
             }
             else
             {
