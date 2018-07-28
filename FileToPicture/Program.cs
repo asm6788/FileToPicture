@@ -3,19 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Threading;
 using System.IO;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace FileToPicture
 {
-    class Program
+    internal class Program
     {
-
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             byte[] bytes;
             if (args.Length == 1)
@@ -26,9 +23,13 @@ namespace FileToPicture
             {
                 bytes = File.ReadAllBytes("input");
             }
-            WantThread(bytes);
+            Task.Run(async () =>
+            {
+                await WantThreadAsync(bytes);
+            }).GetAwaiter().GetResult();
+
             Console.WriteLine("검증 하시겠습니까? (램용량에 주의) Y/N");
-            if(Console.ReadLine() == "Y")
+            if (Console.ReadLine() == "Y")
             {
                 if (args.Length == 1)
                 {
@@ -43,7 +44,7 @@ namespace FileToPicture
             Console.Read();
         }
 
-        private static void WantThread(byte[] bytes) //27바이트 저장 / 6여유 /3,3
+        private static async Task WantThreadAsync(byte[] bytes) //27바이트 저장 / 6여유 /3,3
         {
             Stopwatch stopWatch = new Stopwatch();
             Console.WriteLine("1.싱글쓰레드");
@@ -54,10 +55,10 @@ namespace FileToPicture
                 PictureSize size = CalculateSize(bytes.Length, (PictureShape)(Convert.ToInt32(Console.ReadLine()) - 1));
                 stopWatch.Start();
                 Run(bytes, size).Save("output.png", ImageFormat.Png);
-                stopWatch.Stop();
             }
             else
             {
+  
                 re:
                 int threadCount = 0;
                 int EachSize = 0;
@@ -71,7 +72,6 @@ namespace FileToPicture
                     }
                     threadCount = currentProcess.Threads.Count;
                     EachSize = (int)Math.Ceiling((double)bytes.Length / (double)threadCount);
-
                 }
                 else
                 {
@@ -84,10 +84,15 @@ namespace FileToPicture
                         goto re;
                     }
                 }
+                stopWatch.Start();
                 List<byte[]> EachByte = new List<byte[]>();
                 int locationbyte = 0;
                 for (int i = 0; i != threadCount; i++)
                 {
+                    if(locationbyte >= bytes.Length)
+                    {
+                        break;
+                    }
                     if (i == threadCount - 1)
                     {
                         EachByte.Add(bytes.Skip(locationbyte).Take(bytes.Length - locationbyte).ToArray());
@@ -98,10 +103,9 @@ namespace FileToPicture
                         locationbyte += EachSize;
                     }
                 }
-                Bitmap[] bitmaps = new Bitmap[threadCount];
+                List<Color[]> colors = new List<Color[]>(threadCount);
                 PictureSize size = CalculateSize(bytes.Length, PictureShape.Square);
-
-                int length = bytes.Length / 3;
+                double length = (double)bytes.Length / 3;
                 length /= threadCount;
                 if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
                 {
@@ -114,77 +118,178 @@ namespace FileToPicture
                     size = new PictureSize(Picsize, Picsize);
                 }
 
-                Bitmap Process = new Bitmap(size.W, size.H);
+                Task<Color[]>[] tasks = new Task<Color[]>[threadCount];// 띠용?????
                 for (int index = 0; index != threadCount; index++)
                 {
-                    Thread t1 = new Thread(delegate () { bitmaps[index] = Run(EachByte[index], size); });
-                    t1.Start();
-                    t1.Join();
+                    int i = index;
+                    tasks[i] = Task<Color[]>.Factory.StartNew(() => { return ColorsRun(EachByte[i], size); });
                 }
-                Process = MergeImages(bitmaps);
+                await Task.WhenAll(tasks);
+                foreach(Task<Color[]> task in tasks)
+                {
+                    colors.Add(task.Result);
+                }
+                Bitmap Process = MergeImages(colors);
                 Process.Save("output.png", ImageFormat.Png);
-                Process = null;
-                bitmaps = null;
-                EachByte = null;
-                GC.Collect();
             }
+            stopWatch.Stop();
+            Console.WriteLine("걸린시간 " + stopWatch.Elapsed);
+            GC.Collect();
+        }
+
+        static private Bitmap MergeImages(List<Color[]> colors)
+        {
+            int length = colors[0].Length * colors.Count;
+            PictureSize size;
+            int Picsize = (int)Math.Ceiling(Math.Sqrt(length));
+            size = new PictureSize(Picsize, Picsize);
+            Bitmap bit = new Bitmap(size.W, size.H);
+            int index = 0;
+            int offset = 0;
+            int fulloffset = 0;
+            for (int x = 0; x != size.W; x++)
+            {
+                for (int y = 0; y != size.H; y++)
+                {
+                    if (colors[index].Length == offset)
+                    {
+                        offset = 0;
+                        index++;
+                        if (index == colors.Count)
+                        {
+                            goto exit;
+                        }
+                    }
+
+                    if (colors[index][offset].A == 3)
+                    {
+                        offset = 0;
+                        break;
+                    }
+
+                    bit.SetPixel(x, y, colors[index][offset]);
+                    offset++;
+                    fulloffset++;
+                }
+
+                if (fulloffset == length)
+                {
+                    goto exit;
+                }
+            }
+            exit:
+            return bit;
         }
 
 
-        static private Bitmap MergeImages(Bitmap[] images)
+        static Color[] ColorsRun(byte[] bytes, PictureSize size)
         {
-            var width = 0;
-            var height = 0;
-
-            foreach (var image in images)
+            Color[] ColorMap = new Color[(int)Math.Ceiling((double)bytes.Length / 3)];
+            int offset = 0;
+            int index = 0;
+            int last = size.W * size.H * 3 + (bytes.Length - size.W * size.H * 3);
+            last = (int)Math.Ceiling((double)last / 3);
+            if (!size.IsCircle)
             {
-                width += image.Width;
-                height = image.Height > height
-                    ? image.Height
-                    : height;
-            }
-            List<Color> colors = new List<Color>();
-            foreach (Bitmap bitmap in images)
-            {
-                for (int x = 0; x != bitmap.Size.Width; x++)
+                if (last != 1)
                 {
-                    for (int y = 0; y != bitmap.Size.Height; y++)
-                    {
-                        colors.Add(bitmap.GetPixel(x, y));
-                    }
+                    ColorMap[(int)Math.Ceiling((double)last / 3)] = Color.FromArgb(3, 0, 0, 0);
                 }
             }
-            Bitmap bit = new Bitmap(width, height);
-            int index = 0;
-            for (int x = 0; x != width; x++)
+            int x = 0;
+            int y = 0;
+            for (int i = 0; i != bytes.Length; i++)
             {
-                for (int y = 0; y != height; y++)
+                if (!size.IsCircle)
                 {
-                    bit.SetPixel(x, y, colors[index]);
+                    if (offset + 2 == bytes.Length)
+                    {
+                        ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
+                        goto Exit;
+                    }
+                    else if (offset + 1 == bytes.Length)
+                    {
+                        ColorMap[index] = Color.FromArgb(1, bytes[offset], 0, 0);
+                    }
+                    else if (bytes.Length <= offset)
+                    {
+                        goto Exit;
+                    }
+                    else
+                    {
+                        ColorMap[index] = Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
+                    }
+                    offset += 3;
                     index++;
                 }
+                else
+                {
+                    if (bytes.Length <= offset)
+                    {
+                        offset += 3;
+                        index++;
+                        continue;
+                    }
+                    else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
+                    {
+                        if (offset + 2 == bytes.Length)
+                        {
+                            ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
+                            goto Exit;
+                        }
+                        else if (offset + 1 == bytes.Length)
+                        {
+                            ColorMap[index] = Color.FromArgb(1, bytes[offset], 0, 0);
+                        }
+                        else
+                        {
+                            ColorMap[index] = Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
+                        }
+                        offset += 3;
+                    }
+                    else
+                    {
+                        ColorMap[index] = Color.FromArgb(0, 0, 0, 0);
+                    }
+
+                    index++;
+                }
+
+                if (y == size.W - 1)
+                {
+                    y = 0;
+                    x++;
+                }
+                else
+                {
+                    y++;
+                }
             }
-            colors = null;
-            GC.Collect();
-            return bit;
+            Exit:
+            return ColorMap;
         }
 
         static Bitmap Run(byte[] bytes, PictureSize size)
         {
             Bitmap Process = new Bitmap(size.W, size.H);
             int offset = 0;
+            int last = size.W * size.H * 3 + (bytes.Length - size.W * size.H * 3);
             for (int x = 0; x != Process.Width; x++)
             {
                 for (int y = 0; y != Process.Height; y++)
                 {
                     if (!size.IsCircle)
                     {
-                        if (offset + 2 == bytes.Length)
+                        if(offset >= last)
+                        {
+                            Process.SetPixel(x, y, Color.FromArgb(3, 0, 0, 0));
+                        }
+                        else if (offset + 2 == bytes.Length)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0));
                             goto Exit;
                         }
-                        if (offset + 1 == bytes.Length)
+                        else if (offset + 1 == bytes.Length)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(1, bytes[offset], 0, 0));
                         }
@@ -232,7 +337,7 @@ namespace FileToPicture
             return Process;
         }
 
-        static PictureSize CalculateSize(int length, PictureShape shape)
+        private static PictureSize CalculateSize(int length, PictureShape shape)
         {
             if (shape == PictureShape.Square)
             {
@@ -240,11 +345,13 @@ namespace FileToPicture
                 if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
                 {
                     int size = (int)Math.Ceiling(Math.Sqrt(length));
+                    size += 1;
                     return new PictureSize(size, size);
                 }
                 else
                 {
                     int size = (int)Math.Sqrt(length);
+                    size += 1;
                     return new PictureSize(size, size);
                 }
             }
@@ -261,11 +368,12 @@ namespace FileToPicture
                 {
                     size = Convert.ToInt32(length);
                     size /= 3;
+                    size += 1;
                 }
-                List<Divisor> divisors = getDivisors(size);
-                for (int i =0; i != divisors.Count;i++)
+                List<Divisor> divisors = GetDivisors(size);
+                for (int i = 0; i != divisors.Count; i++)
                 {
-                    Console.WriteLine(i+" : w:"+ divisors[i].A + " h:" + divisors[i].B);
+                    Console.WriteLine(i + " : w:" + divisors[i].A + " h:" + divisors[i].B);
                 }
                 int input = Convert.ToInt32(Console.ReadLine());
                 return new PictureSize(divisors[input].A, divisors[input].B);
@@ -274,15 +382,16 @@ namespace FileToPicture
             {
                 length /= 3;
                 int size = (int)Math.Ceiling(0.56419 * Math.Sqrt(length));
+                size += 1;
                 size *= 2;
-                return new PictureSize(size, size,true);
+                return new PictureSize(size, size, true);
             }
         }
 
-        static List<Divisor> getDivisors(int num)
+        private static List<Divisor> GetDivisors(int num)
         {
             List<Divisor> temp = new List<Divisor>();
-            for(int i = 1; i <= num;i++)
+            for (int i = 1; i <= num; i++)
             {
                 if (num % i == 0)
                 {
@@ -292,7 +401,7 @@ namespace FileToPicture
             return temp;
         }
 
-        static void Validate(string input)
+        private static void Validate(string input)
         {
             List<byte> data = new List<byte>();
             Image image = Bitmap.FromFile("output.png");
@@ -312,13 +421,16 @@ namespace FileToPicture
                         data.Add(pixel.R);
                         data.Add(pixel.G);
                     }
+                    else if (pixel.A == 3)
+                    {
+                        continue;
+                    }
                     else if (pixel != Color.FromArgb(0, 0, 0, 0))
                     {
                         data.Add(pixel.R);
                         data.Add(pixel.G);
                         data.Add(pixel.B);
                     }
-                   
                 }
             }
             if (bytes.Length == data.ToArray().Length)
@@ -329,7 +441,7 @@ namespace FileToPicture
             {
                 Console.WriteLine("검증실패/bytes 사이즈");
             }
-            if(bytes.SequenceEqual(data.ToArray()))
+            if (bytes.SequenceEqual(data.ToArray()))
             {
                 Console.WriteLine("검증통과/파일손상 없음");
             }
@@ -343,12 +455,13 @@ namespace FileToPicture
             Console.WriteLine("Validate.output 쓰기 완료");
         }
     }
-    
-    class PictureSize
+
+    internal class PictureSize
     {
         public int W;
         public int H;
         public bool IsCircle;
+
         public PictureSize(int w, int h)
         {
             W = w;
@@ -361,7 +474,7 @@ namespace FileToPicture
         }
     }
 
-    class Divisor
+    internal class Divisor
     {
         public int A;
         public int B;
@@ -373,8 +486,7 @@ namespace FileToPicture
         }
     }
 
-
-    enum PictureShape
+    internal enum PictureShape
     {
         Square,
         Rectangular,
