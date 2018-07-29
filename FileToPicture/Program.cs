@@ -29,7 +29,7 @@ namespace FileToPicture
             }).GetAwaiter().GetResult();
 
             Console.WriteLine("검증 하시겠습니까? (램용량에 주의) Y/N");
-            if (Console.ReadLine() == "Y")
+            if (Console.ReadLine().ToUpper() == "Y")
             {
                 if (args.Length == 1)
                 {
@@ -63,7 +63,7 @@ namespace FileToPicture
                 int threadCount = 0;
                 int EachSize = 0;
                 Console.WriteLine("멀티 코어로 하시겠습니까? Y/N");
-                if (Console.ReadLine() == "Y")
+                if (Console.ReadLine().ToUpper() == "Y")
                 {
                     Process currentProcess = System.Diagnostics.Process.GetCurrentProcess();
                     foreach (ProcessThread processThread in currentProcess.Threads)
