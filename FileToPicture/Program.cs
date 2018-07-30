@@ -139,7 +139,7 @@ namespace FileToPicture
 
         static private Bitmap MergeImages(List<Color[]> colors)
         {
-            int length = colors[0].Length * colors.Count;
+            int length = colors[0].Length * (colors.Count-1) + colors.Last().Length;
             PictureSize size;
             int Picsize = (int)Math.Ceiling(Math.Sqrt(length));
             size = new PictureSize(Picsize, Picsize);
@@ -159,13 +159,6 @@ namespace FileToPicture
                         {
                             goto exit;
                         }
-                    }
-
-                    if (colors[index][offset].A == 3)
-                    {
-                        offset = 0;
-                        index++;
-                        break;
                     }
 
                     bit.SetPixel(x, y, colors[index][offset]);
@@ -188,17 +181,11 @@ namespace FileToPicture
             Color[] ColorMap = new Color[(int)Math.Ceiling((double)bytes.Length / 3)];
             int offset = 0;
             int index = 0;
-            int last = size.W * size.H * 3 + (bytes.Length - size.W * size.H * 3);
-            last = (int)Math.Ceiling((double)last / 3);
-            if (last != 1)
-            {
-                ColorMap[(int)Math.Ceiling((double)last / 3)] = Color.FromArgb(3, 0, 0, 0);
-            }
-
             int x = 0;
             int y = 0;
             for (int i = 0; i != bytes.Length; i++)
             {
+                if(x == 511) { Debugger.Break(); }
                 if (offset + 2 == bytes.Length)
                 {
                     ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
@@ -247,6 +234,7 @@ namespace FileToPicture
                         if(offset >= last)
                         {
                             Process.SetPixel(x, y, Color.FromArgb(3, 0, 0, 0));
+                            break;
                         }
                         else if (offset + 2 == bytes.Length)
                         {
