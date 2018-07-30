@@ -185,7 +185,6 @@ namespace FileToPicture
             int y = 0;
             for (int i = 0; i != bytes.Length; i++)
             {
-                if(x == 511) { Debugger.Break(); }
                 if (offset + 2 == bytes.Length)
                 {
                     ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
