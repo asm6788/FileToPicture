@@ -164,6 +164,7 @@ namespace FileToPicture
                     if (colors[index][offset].A == 3)
                     {
                         offset = 0;
+                        index++;
                         break;
                     }
 
@@ -189,71 +190,34 @@ namespace FileToPicture
             int index = 0;
             int last = size.W * size.H * 3 + (bytes.Length - size.W * size.H * 3);
             last = (int)Math.Ceiling((double)last / 3);
-            if (!size.IsCircle)
+            if (last != 1)
             {
-                if (last != 1)
-                {
-                    ColorMap[(int)Math.Ceiling((double)last / 3)] = Color.FromArgb(3, 0, 0, 0);
-                }
+                ColorMap[(int)Math.Ceiling((double)last / 3)] = Color.FromArgb(3, 0, 0, 0);
             }
+
             int x = 0;
             int y = 0;
             for (int i = 0; i != bytes.Length; i++)
             {
-                if (!size.IsCircle)
+                if (offset + 2 == bytes.Length)
                 {
-                    if (offset + 2 == bytes.Length)
-                    {
-                        ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
-                        goto Exit;
-                    }
-                    else if (offset + 1 == bytes.Length)
-                    {
-                        ColorMap[index] = Color.FromArgb(1, bytes[offset], 0, 0);
-                    }
-                    else if (bytes.Length <= offset)
-                    {
-                        goto Exit;
-                    }
-                    else
-                    {
-                        ColorMap[index] = Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
-                    }
-                    offset += 3;
-                    index++;
+                    ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
+                    goto Exit;
+                }
+                else if (offset + 1 == bytes.Length)
+                {
+                    ColorMap[index] = Color.FromArgb(1, bytes[offset], 0, 0);
+                }
+                else if (bytes.Length <= offset)
+                {
+                    goto Exit;
                 }
                 else
                 {
-                    if (bytes.Length <= offset)
-                    {
-                        offset += 3;
-                        index++;
-                        continue;
-                    }
-                    else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
-                    {
-                        if (offset + 2 == bytes.Length)
-                        {
-                            ColorMap[index] = Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0);
-                            goto Exit;
-                        }
-                        else if (offset + 1 == bytes.Length)
-                        {
-                            ColorMap[index] = Color.FromArgb(1, bytes[offset], 0, 0);
-                        }
-                        else
-                        {
-                            ColorMap[index] = Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
-                        }
-                        offset += 3;
-                    }
-                    else
-                    {
-                        ColorMap[index] = Color.FromArgb(0, 0, 0, 0);
-                    }
-
-                    index++;
+                    ColorMap[index] = Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
                 }
+                offset += 3;
+                index++;
 
                 if (y == size.W - 1)
                 {
@@ -345,13 +309,12 @@ namespace FileToPicture
                 if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
                 {
                     int size = (int)Math.Ceiling(Math.Sqrt(length));
-                    size += 1;
+               
                     return new PictureSize(size, size);
                 }
                 else
                 {
                     int size = (int)Math.Sqrt(length);
-                    size += 1;
                     return new PictureSize(size, size);
                 }
             }
@@ -368,7 +331,6 @@ namespace FileToPicture
                 {
                     size = Convert.ToInt32(length);
                     size /= 3;
-                    size += 1;
                 }
                 List<Divisor> divisors = GetDivisors(size);
                 for (int i = 0; i != divisors.Count; i++)
@@ -382,7 +344,6 @@ namespace FileToPicture
             {
                 length /= 3;
                 int size = (int)Math.Ceiling(0.56419 * Math.Sqrt(length));
-                size += 1;
                 size *= 2;
                 return new PictureSize(size, size, true);
             }
