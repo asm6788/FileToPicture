@@ -14,6 +14,29 @@ namespace FileToPicture
     {
         private static void Main(string[] args)
         {
+            if (!File.Exists("input"))
+            {
+                Console.WriteLine("input 파일이 존재하지 않으며 드래그된 파일도 없습니다");
+                Console.Read();
+                Environment.Exit(0);
+            }
+
+            Console.WriteLine("디코딩 하시겠습니까? Y/N");
+            if (Console.ReadLine().ToUpper() == "Y")
+            {
+                if (args.Length == 1)
+                {
+                    File.WriteAllBytes("Decode.output", Decode(args[0]));
+                }
+                else
+                {
+                    File.WriteAllBytes("Decode.output", Decode("input"));
+                }
+                Console.WriteLine("디코딩 완료");
+                Console.Read();
+                Environment.Exit(0);
+            }
+
             byte[] bytes;
             if (args.Length == 1)
             {
@@ -351,10 +374,35 @@ namespace FileToPicture
 
         private static void Validate(string input)
         {
-            List<byte> data = new List<byte>();
-            Image image = Bitmap.FromFile("output.png");
-            Bitmap myBitmap = (Bitmap)image;
             byte[] bytes = File.ReadAllBytes(input);
+            byte[] data = Decode("output.png");
+            if (bytes.Length == data.Length)
+            {
+                Console.WriteLine("검증통과/bytes 사이즈");
+            }
+            else
+            {
+                Console.WriteLine("검증실패/bytes 사이즈");
+            }
+            if (bytes.SequenceEqual(data))
+            {
+                Console.WriteLine("검증통과/파일손상 없음");
+            }
+            else
+            {
+                Console.WriteLine("검증실패/파일손상 있음");
+            }
+            System.Diagnostics.Process.Start("output.png");
+            Console.WriteLine("Validate.output 쓰는중..");
+            File.WriteAllBytes("Validate.output", data);
+            Console.WriteLine("Validate.output 쓰기 완료");
+        }
+
+        private static byte[] Decode(string input)
+        {
+            List<byte> data = new List<byte>();
+            Image image = Bitmap.FromFile(input);
+            Bitmap myBitmap = (Bitmap)image;
             for (int x = 0; x != myBitmap.Width; x++)
             {
                 for (int y = 0; y != myBitmap.Height; y++)
@@ -381,26 +429,8 @@ namespace FileToPicture
                     }
                 }
             }
-            if (bytes.Length == data.ToArray().Length)
-            {
-                Console.WriteLine("검증통과/bytes 사이즈");
-            }
-            else
-            {
-                Console.WriteLine("검증실패/bytes 사이즈");
-            }
-            if (bytes.SequenceEqual(data.ToArray()))
-            {
-                Console.WriteLine("검증통과/파일손상 없음");
-            }
-            else
-            {
-                Console.WriteLine("검증실패/파일손상 있음");
-            }
-            System.Diagnostics.Process.Start("output.png");
-            Console.WriteLine("Validate.output 쓰는중..");
-            File.WriteAllBytes("Validate.output", data.ToArray());
-            Console.WriteLine("Validate.output 쓰기 완료");
+
+            return data.ToArray();
         }
     }
 
