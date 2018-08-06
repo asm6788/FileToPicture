@@ -14,7 +14,7 @@ namespace FileToPicture
     {
         private static void Main(string[] args)
         {
-            if (!File.Exists("input"))
+            if (!File.Exists("input") && args.Length == 0)
             {
                 Console.WriteLine("input 파일이 존재하지 않으며 드래그된 파일도 없습니다");
                 Console.Read();
