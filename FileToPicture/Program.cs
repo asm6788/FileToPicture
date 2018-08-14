@@ -39,7 +39,7 @@ namespace FileToPicture
                 Environment.Exit(0);
             }
 
-            int length = Convert.ToInt32(new FileInfo(filename).Length); 
+            long length = new FileInfo(filename).Length; 
         
             Task.Run(async () =>
             {
@@ -62,7 +62,7 @@ namespace FileToPicture
             Console.Read();
         }
 
-        private static async Task WantThreadAsync(string filename,int filelength) //27바이트 저장 / 6여유 /3,3
+        private static async Task WantThreadAsync(string filename,long filelength)
         {
             Stopwatch stopWatch = new Stopwatch();
             Console.WriteLine("1.싱글쓰레드");
@@ -241,13 +241,13 @@ namespace FileToPicture
             return ColorMap;
         }
 
-        static Bitmap Run(string filename, int Length, PictureSize size)
+        static Bitmap Run(string filename, long Length, PictureSize size)
         {
             Bitmap Process = new Bitmap(size.W, size.H);
             int offset = 0;
             byte[] bytes = new byte[3];
             FileStream stream = new FileStream(filename, FileMode.Open);
-            int last = size.W * size.H * 3 + (Length - size.W * size.H * 3);
+           long last = size.W * size.H * 3 + (Length - size.W * size.H * 3);
             using (var fastBitmap = Process.FastLock())
             {
                 for (int x = 0; x != Process.Width; x++)
@@ -317,15 +317,15 @@ namespace FileToPicture
             return Process;
         }
 
-        private static PictureSize CalculateSize(int length, PictureShape shape)
+        private static PictureSize CalculateSize(long length, PictureShape shape)
         {
+            if (length > 1610546700) { throw new Exception("파일이 1.6GB보다 큽니다."); }
             if (shape == PictureShape.Square)
             {
                 length /= 3;
                 if ((Math.Sqrt(length) % 1) != 0) //소수 나옴
                 {
                     int size = (int)Math.Ceiling(Math.Sqrt(length));
-               
                     return new PictureSize(size, size);
                 }
                 else
