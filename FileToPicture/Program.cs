@@ -21,6 +21,7 @@ namespace FileToPicture
                 Console.Read();
                 Environment.Exit(0);
             }
+            string filename = File.Exists("input") ? "input" : args[0];
 
             Console.WriteLine("디코딩 하시겠습니까? Y/N");
             if (Console.ReadLine().ToUpper() == "Y")
@@ -38,18 +39,11 @@ namespace FileToPicture
                 Environment.Exit(0);
             }
 
-            byte[] bytes;
-            if (args.Length == 1)
-            {
-                bytes = File.ReadAllBytes(args[0]);
-            }
-            else
-            {
-                bytes = File.ReadAllBytes("input");
-            }
+            int length = Convert.ToInt32(new FileInfo(filename).Length); 
+        
             Task.Run(async () =>
             {
-                await WantThreadAsync(bytes);
+                await WantThreadAsync(filename,length);
             }).GetAwaiter().GetResult();
 
             Console.WriteLine("검증 하시겠습니까? (램용량에 주의) Y/N");
@@ -68,7 +62,7 @@ namespace FileToPicture
             Console.Read();
         }
 
-        private static async Task WantThreadAsync(byte[] bytes) //27바이트 저장 / 6여유 /3,3
+        private static async Task WantThreadAsync(string filename,int filelength) //27바이트 저장 / 6여유 /3,3
         {
             Stopwatch stopWatch = new Stopwatch();
             Console.WriteLine("1.싱글쓰레드");
@@ -76,13 +70,14 @@ namespace FileToPicture
             if (Console.ReadLine() == "1")
             {
                 Console.Write("모양을 선택해주세요. (1 : 정사각형, 2 : 직사각형, 3 : 원) : ");
-                PictureSize size = CalculateSize(bytes.Length, (PictureShape)(Convert.ToInt32(Console.ReadLine()) - 1));
+                PictureSize size = CalculateSize(filelength, (PictureShape)(Convert.ToInt32(Console.ReadLine()) - 1));
                 stopWatch.Start();
-                Run(bytes, size).Save("output.png", ImageFormat.Png);
+                Run(filename, filelength, size).Save("output.png", ImageFormat.Png);
             }
             else
             {
-  
+
+                byte[] bytes = File.ReadAllBytes(filename);
                 re:
                 int threadCount = 0;
                 int EachSize = 0;
@@ -246,11 +241,13 @@ namespace FileToPicture
             return ColorMap;
         }
 
-        static Bitmap Run(byte[] bytes, PictureSize size)
+        static Bitmap Run(string filename, int Length, PictureSize size)
         {
             Bitmap Process = new Bitmap(size.W, size.H);
             int offset = 0;
-            int last = size.W * size.H * 3 + (bytes.Length - size.W * size.H * 3);
+            byte[] bytes = new byte[3];
+            FileStream stream = new FileStream(filename, FileMode.Open);
+            int last = size.W * size.H * 3 + (Length - size.W * size.H * 3);
             using (var fastBitmap = Process.FastLock())
             {
                 for (int x = 0; x != Process.Width; x++)
@@ -259,50 +256,52 @@ namespace FileToPicture
                     {
                         if (!size.IsCircle)
                         {
+                            stream.Read(bytes, 0, 3);
                             if (offset >= last)
                             {
                                 fastBitmap.SetPixel(x, y, Color.FromArgb(3, 0, 0, 0));
                                 break;
                             }
-                            else if (offset + 2 == bytes.Length)
+                            else if (offset + 2 == Length)
                             {
-                                fastBitmap.SetPixel(x, y, Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0));
+                                fastBitmap.SetPixel(x, y, Color.FromArgb(2, bytes[0], bytes[1], 0));
                                 goto Exit;
                             }
-                            else if (offset + 1 == bytes.Length)
+                            else if (offset + 1 == Length)
                             {
-                                fastBitmap.SetPixel(x, y, Color.FromArgb(1, bytes[offset], 0, 0));
+                                fastBitmap.SetPixel(x, y, Color.FromArgb(1, bytes[0], 0, 0));
                             }
-                            else if (bytes.Length <= offset)
+                            else if (Length <= offset)
                             {
                                 goto Exit;
                             }
                             else
                             {
-                                fastBitmap.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                                fastBitmap.SetPixel(x, y, Color.FromArgb(255, bytes[0], bytes[1], bytes[2]));
                             }
                             offset += 3;
                         }
                         else
                         {
-                            if (bytes.Length <= offset)
+                            if (Length <= offset)
                             {
                                 goto Exit;
                             }
                             else if (size.W * size.W / 4.0 > (x - size.W / 2.0) * (x - size.W / 2.0) + (y - size.H / 2.0) * (y - size.H / 2.0)) //그리기
                             {
-                                if (offset + 2 == bytes.Length)
+                                stream.Read(bytes, 0, 3);
+                                if (offset + 2 == Length)
                                 {
-                                    fastBitmap.SetPixel(x, y, Color.FromArgb(2, bytes[offset], bytes[offset + 1], 0));
+                                    fastBitmap.SetPixel(x, y, Color.FromArgb(2, bytes[0], bytes[1], 0));
                                     goto Exit;
                                 }
-                                else if (offset + 1 == bytes.Length)
+                                else if (offset + 1 == Length)
                                 {
-                                    fastBitmap.SetPixel(x, y, Color.FromArgb(1, bytes[offset], 0, 0));
+                                    fastBitmap.SetPixel(x, y, Color.FromArgb(1, bytes[0], 0, 0));
                                 }
                                 else
                                 {
-                                    fastBitmap.SetPixel(x, y, Color.FromArgb(255, bytes[offset], bytes[offset + 1], bytes[offset + 2]));
+                                    fastBitmap.SetPixel(x, y, Color.FromArgb(255, bytes[0], bytes[1], bytes[2]));
                                 }
                                 offset += 3;
                             }
