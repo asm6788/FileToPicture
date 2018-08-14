@@ -21,8 +21,25 @@ namespace FileToPicture
                 Console.Read();
                 Environment.Exit(0);
             }
-            string filename = File.Exists("input") ? "input" : args[0];
-
+            string filename = null;
+            if(File.Exists("input") && args.Length == 1)
+            {
+                Console.WriteLine("input 파일과 드래그된 파일이 두개나 있습니다!");
+                Console.WriteLine("1.input 파일 사용");
+                Console.WriteLine("2.드래그된 파일사용");
+                if(Console.ReadLine() == "1")
+                {
+                    filename = "input";
+                }
+                else
+                {
+                    filename = args[0];
+                }
+            }
+            else
+            {
+                filename = File.Exists("input") ? "input" : args[0];
+            }
             Console.WriteLine("디코딩 하시겠습니까? Y/N");
             if (Console.ReadLine().ToUpper() == "Y")
             {
@@ -49,14 +66,7 @@ namespace FileToPicture
             Console.WriteLine("검증 하시겠습니까? (램용량에 주의) Y/N");
             if (Console.ReadLine().ToUpper() == "Y")
             {
-                if (args.Length == 1)
-                {
-                    Validate(args[0]);
-                }
-                else
-                {
-                    Validate("input");
-                }
+                Validate(filename);
             }
             Console.WriteLine("완료");
             Console.Read();
